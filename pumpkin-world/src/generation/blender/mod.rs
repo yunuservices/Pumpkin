@@ -28,7 +28,7 @@ pub trait BlenderImpl {
     fn apply_blend_density(&self, pos: &Vector3<i32>, density: f64) -> f64;
 
     fn get_biome_supplier(&self) {
-        todo!()
+        // Default blender has no biome blending supplier yet.
     }
 }
 
