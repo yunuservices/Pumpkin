@@ -6,12 +6,22 @@ use pumpkin_config::lighting::LightingEngineConfig;
 use pumpkin_data::BlockDirection;
 use pumpkin_util::math::position::BlockPos;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use tracing::warn;
+
+const MAX_QUEUED_LIGHT_UPDATES: usize = 1_000_000;
+const DROPPED_LIGHT_UPDATE_LOG_EVERY: u64 = 10_000;
 
 pub struct DynamicLightEngine {
     decrease_block_light_queue: SegQueue<(BlockPos, u8)>,
     increase_block_light_queue: SegQueue<(BlockPos, u8)>,
     decrease_sky_light_queue: SegQueue<(BlockPos, u8)>,
     increase_sky_light_queue: SegQueue<(BlockPos, u8)>,
+    decrease_block_light_len: AtomicUsize,
+    increase_block_light_len: AtomicUsize,
+    decrease_sky_light_len: AtomicUsize,
+    increase_sky_light_len: AtomicUsize,
+    dropped_light_updates: AtomicU64,
 }
 
 impl DynamicLightEngine {
@@ -21,7 +31,35 @@ impl DynamicLightEngine {
             increase_block_light_queue: SegQueue::new(),
             decrease_sky_light_queue: SegQueue::new(),
             increase_sky_light_queue: SegQueue::new(),
+            decrease_block_light_len: AtomicUsize::new(0),
+            increase_block_light_len: AtomicUsize::new(0),
+            decrease_sky_light_len: AtomicUsize::new(0),
+            increase_sky_light_len: AtomicUsize::new(0),
+            dropped_light_updates: AtomicU64::new(0),
         }
+    }
+
+    #[inline]
+    fn try_enqueue(
+        &self,
+        queue_name: &'static str,
+        queue: &SegQueue<(BlockPos, u8)>,
+        len: &AtomicUsize,
+        pos: BlockPos,
+        level: u8,
+    ) {
+        let new_len = len.fetch_add(1, Ordering::Relaxed) + 1;
+        if new_len > MAX_QUEUED_LIGHT_UPDATES {
+            len.fetch_sub(1, Ordering::Relaxed);
+            let dropped = self.dropped_light_updates.fetch_add(1, Ordering::Relaxed) + 1;
+            if dropped.is_multiple_of(DROPPED_LIGHT_UPDATE_LOG_EVERY) {
+                warn!(
+                    "Dropped {dropped} lighting updates (queue={queue_name}, max_queued={MAX_QUEUED_LIGHT_UPDATES})"
+                );
+            }
+            return;
+        }
+        queue.push((pos, level));
     }
 }
 impl Default for DynamicLightEngine {
@@ -61,19 +99,43 @@ impl DynamicLightEngine {
     }
 
     pub fn queue_block_light_decrease(&self, pos: BlockPos, level: u8) {
-        self.decrease_block_light_queue.push((pos, level));
+        self.try_enqueue(
+            "decrease_block",
+            &self.decrease_block_light_queue,
+            &self.decrease_block_light_len,
+            pos,
+            level,
+        );
     }
 
     pub fn queue_block_light_increase(&self, pos: BlockPos, level: u8) {
-        self.increase_block_light_queue.push((pos, level));
+        self.try_enqueue(
+            "increase_block",
+            &self.increase_block_light_queue,
+            &self.increase_block_light_len,
+            pos,
+            level,
+        );
     }
 
     pub fn queue_sky_light_decrease(&self, pos: BlockPos, level: u8) {
-        self.decrease_sky_light_queue.push((pos, level));
+        self.try_enqueue(
+            "decrease_sky",
+            &self.decrease_sky_light_queue,
+            &self.decrease_sky_light_len,
+            pos,
+            level,
+        );
     }
 
     pub fn queue_sky_light_increase(&self, pos: BlockPos, level: u8) {
-        self.increase_sky_light_queue.push((pos, level));
+        self.try_enqueue(
+            "increase_sky",
+            &self.increase_sky_light_queue,
+            &self.increase_sky_light_len,
+            pos,
+            level,
+        );
     }
 
     pub async fn perform_block_light_updates(&self, level: &Arc<Level>) -> i32 {
@@ -100,6 +162,7 @@ impl DynamicLightEngine {
         let mut updates = 0;
 
         while let Some((pos, expected_light)) = self.decrease_block_light_queue.pop() {
+            self.decrease_block_light_len.fetch_sub(1, Ordering::Relaxed);
             self.propagate_block_light_decrease(level, &pos, expected_light)
                 .await;
             updates += 1;
@@ -112,6 +175,7 @@ impl DynamicLightEngine {
         let mut updates = 0;
 
         while let Some((pos, expected_light)) = self.increase_block_light_queue.pop() {
+            self.increase_block_light_len.fetch_sub(1, Ordering::Relaxed);
             self.propagate_block_light_increase(level, &pos, expected_light)
                 .await;
             updates += 1;
@@ -274,6 +338,7 @@ impl DynamicLightEngine {
     async fn perform_sky_light_decrease_updates(&self, level: &Arc<Level>) -> i32 {
         let mut updates = 0;
         while let Some((pos, expected_light)) = self.decrease_sky_light_queue.pop() {
+            self.decrease_sky_light_len.fetch_sub(1, Ordering::Relaxed);
             self.propagate_sky_light_decrease(level, &pos, expected_light)
                 .await;
             updates += 1;
@@ -284,6 +349,7 @@ impl DynamicLightEngine {
     async fn perform_sky_light_increase_updates(&self, level: &Arc<Level>) -> i32 {
         let mut updates = 0;
         while let Some((pos, expected_light)) = self.increase_sky_light_queue.pop() {
+            self.increase_sky_light_len.fetch_sub(1, Ordering::Relaxed);
             self.propagate_sky_light_increase(level, &pos, expected_light)
                 .await;
             updates += 1;

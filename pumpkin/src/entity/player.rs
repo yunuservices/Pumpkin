@@ -109,7 +109,7 @@ enum BatchState {
     Count(u8),
 }
 
-struct HeapNode(i32, Vector2<i32>, SyncChunk);
+struct HeapNode(i32, Vector2<i32>);
 
 impl Eq for HeapNode {}
 
@@ -137,6 +137,7 @@ pub struct ChunkManager {
     view_distance: u8,
     chunk_listener: Receiver<(Vector2<i32>, SyncChunk)>,
     chunk_sent: HashMap<Vector2<i32>, Weak<ChunkData>>,
+    pending_chunks: HashMap<Vector2<i32>, SyncChunk>,
     chunk_queue: BinaryHeap<HeapNode>,
     entity_chunk_queue: VecDeque<(Vector2<i32>, SyncEntityChunk)>,
     batches_sent_since_ack: BatchState,
@@ -159,6 +160,7 @@ impl ChunkManager {
             view_distance: 0,
             chunk_listener,
             chunk_sent: HashMap::new(),
+            pending_chunks: HashMap::new(),
             chunk_queue: BinaryHeap::new(),
             entity_chunk_queue: VecDeque::new(),
             batches_sent_since_ack: BatchState::Initial,
@@ -179,6 +181,32 @@ impl ChunkManager {
             .is_none_or(|old_chunk| !Arc::ptr_eq(&old_chunk, chunk))
     }
 
+    fn queue_chunk_update(&mut self, position: Vector2<i32>, chunk: SyncChunk) {
+        let dst = (position.x - self.center.x)
+            .abs()
+            .max((position.y - self.center.y).abs());
+        self.pending_chunks.insert(position, chunk);
+        self.chunk_queue.push(HeapNode(dst, position));
+    }
+
+    fn rebuild_chunk_queue(&mut self) {
+        let mut new_queue = BinaryHeap::with_capacity(self.pending_chunks.len());
+        for pos in self.pending_chunks.keys() {
+            let dst = (pos.x - self.center.x)
+                .abs()
+                .max((pos.y - self.center.y).abs());
+            new_queue.push(HeapNode(dst, *pos));
+        }
+        self.chunk_queue = new_queue;
+    }
+
+    fn compact_chunk_queue_if_needed(&mut self) {
+        let stale_allowance = self.pending_chunks.len().saturating_mul(4).saturating_add(1024);
+        if self.chunk_queue.len() > stale_allowance {
+            self.rebuild_chunk_queue();
+        }
+    }
+
     pub fn pull_new_chunks(&mut self) {
         // log::debug!("pull new chunks");
         while let Ok((pos, chunk)) = self.chunk_listener.try_recv() {
@@ -189,10 +217,11 @@ impl ChunkManager {
                 continue;
             }
             if self.should_enqueue_chunk(pos, &chunk) {
-                // log::debug!("receive new chunk {pos:?}");
-                self.chunk_queue.push(HeapNode(dst, pos, chunk));
+                // Keep only the latest chunk per position to avoid unbounded queue growth.
+                self.queue_chunk_update(pos, chunk);
             }
         }
+        self.compact_chunk_queue_if_needed();
         // log::debug!("chunk_queue size {}", self.chunk_queue.len());
         // log::debug!("chunk_sent size {}", self.chunk_sent.len());
     }
@@ -234,14 +263,11 @@ impl ChunkManager {
                 && !unloading_chunks.contains(pos)
         });
 
-        let mut new_queue = BinaryHeap::with_capacity(self.chunk_queue.len());
-        for node in self.chunk_queue.drain() {
-            let dst = (node.1.x - center.x).abs().max((node.1.y - center.y).abs());
-            if dst <= view_distance_i32 && !unloading_chunks.contains(&node.1) {
-                new_queue.push(HeapNode(dst, node.1, node.2));
-            }
-        }
-        self.chunk_queue = new_queue;
+        self.pending_chunks.retain(|pos, _| {
+            (pos.x - center.x).abs().max((pos.y - center.y).abs()) <= view_distance_i32
+                && !unloading_chunks.contains(pos)
+        });
+        self.rebuild_chunk_queue();
 
         for pos in loading_chunks {
             if !self.chunk_sent.contains_key(pos)
@@ -264,6 +290,7 @@ impl ChunkManager {
 
         // Drop any held chunk references to allow chunks to be unloaded.
         self.chunk_sent.clear();
+        self.pending_chunks.clear();
         self.chunk_queue.clear();
         self.entity_chunk_queue.clear();
         self.batches_sent_since_ack = BatchState::Initial;
@@ -278,6 +305,7 @@ impl ChunkManager {
         drop(lock);
         self.chunk_listener = new_world.level.chunk_listener.add_global_chunk_listener();
         self.chunk_sent.clear();
+        self.pending_chunks.clear();
         self.chunk_queue.clear();
         self.world = new_world;
         // Reset batch state so chunks can be sent immediately in the new dimension
@@ -291,10 +319,7 @@ impl ChunkManager {
 
     pub fn push_chunk(&mut self, position: Vector2<i32>, chunk: SyncChunk) {
         if self.should_enqueue_chunk(position, &chunk) {
-            let dst = (position.x - self.center.x)
-                .abs()
-                .max((position.y - self.center.y).abs());
-            self.chunk_queue.push(HeapNode(dst, position, chunk));
+            self.queue_chunk_update(position, chunk);
         }
     }
 
@@ -310,15 +335,24 @@ impl ChunkManager {
             BatchState::Waiting => false,
         };
 
-        state_available && !self.chunk_queue.is_empty()
+        state_available && !self.pending_chunks.is_empty()
     }
 
     pub fn next_chunk(&mut self) -> Box<[SyncChunk]> {
-        let mut chunk_size = self.chunk_queue.len().min(self.chunks_per_tick);
+        let chunk_size = self.pending_chunks.len().min(self.chunks_per_tick);
         let mut chunks = Vec::<Arc<ChunkData>>::with_capacity(chunk_size);
-        while chunk_size > 0 {
-            chunks.push(self.chunk_queue.pop().unwrap().2);
-            chunk_size -= 1;
+        while chunks.len() < chunk_size {
+            let Some(HeapNode(_, pos)) = self.chunk_queue.pop() else {
+                break;
+            };
+            if let Some(chunk) = self.pending_chunks.remove(&pos) {
+                chunks.push(chunk);
+            }
+        }
+        if chunks.is_empty() {
+            // Queue may only contain stale position-only entries; rebuild lazily.
+            self.compact_chunk_queue_if_needed();
+            return chunks.into_boxed_slice();
         }
         match &mut self.batches_sent_since_ack {
             BatchState::Count(count) => {
@@ -327,6 +361,7 @@ impl ChunkManager {
             state @ BatchState::Initial => *state = BatchState::Waiting,
             BatchState::Waiting => (),
         }
+        self.compact_chunk_queue_if_needed();
 
         chunks.into_boxed_slice()
     }
