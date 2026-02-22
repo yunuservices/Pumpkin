@@ -23,22 +23,22 @@ use crate::net::java::JavaClient;
 use crate::plugin::block::block_can_build::BlockCanBuildEvent;
 use crate::plugin::block::block_place::BlockPlaceEvent;
 use crate::plugin::block::sign_change::SignChangeEvent;
-use crate::plugin::player::player_animation::PlayerAnimationEvent;
-use crate::plugin::player::player_armor_stand_manipulate::PlayerArmorStandManipulateEvent;
-use crate::plugin::player::player_bucket_entity::PlayerBucketEntityEvent;
-use crate::plugin::player::player_changed_main_hand::PlayerChangedMainHandEvent;
+use crate::plugin::player::animation::PlayerAnimationEvent;
+use crate::plugin::player::armor_stand_manipulate::PlayerArmorStandManipulateEvent;
+use crate::plugin::player::bucket_entity::PlayerBucketEntityEvent;
+use crate::plugin::player::changed_main_hand::PlayerChangedMainHandEvent;
 use crate::plugin::player::player_chat::PlayerChatEvent;
-use crate::plugin::player::player_command_preprocess::PlayerCommandPreprocessEvent;
-use crate::plugin::player::player_edit_book::PlayerEditBookEvent;
-use crate::plugin::player::player_interact_at_entity::PlayerInteractAtEntityEvent;
-use crate::plugin::player::player_interact_entity::PlayerInteractEntityEvent as PlayerInteractEntitySimpleEvent;
+use crate::plugin::player::command_preprocess::PlayerCommandPreprocessEvent;
+use crate::plugin::player::edit_book::PlayerEditBookEvent;
+use crate::plugin::player::interact_at_entity::PlayerInteractAtEntityEvent;
+use crate::plugin::player::interact_entity::PlayerInteractEntityEvent as PlayerInteractEntitySimpleEvent;
 use crate::plugin::player::player_interact_entity_event::PlayerInteractEntityEvent as PlayerInteractEntityCoreEvent;
 use crate::plugin::player::player_interact_event::{InteractAction, PlayerInteractEvent};
 use crate::plugin::player::player_interact_unknown_entity_event::PlayerInteractUnknownEntityEvent;
-use crate::plugin::player::player_item_held::PlayerItemHeldEvent;
+use crate::plugin::player::item_held::PlayerItemHeldEvent;
 use crate::plugin::player::player_move::PlayerMoveEvent;
-use crate::plugin::player::player_register_channel::PlayerRegisterChannelEvent;
-use crate::plugin::player::player_unregister_channel::PlayerUnregisterChannelEvent;
+use crate::plugin::player::register_channel::PlayerRegisterChannelEvent;
+use crate::plugin::player::unregister_channel::PlayerUnregisterChannelEvent;
 use crate::server::{Server, seasonal_events};
 use crate::world::{World, chunker};
 use pumpkin_data::block_properties::{
@@ -800,7 +800,7 @@ impl JavaClient {
                 Action::StartSprinting => {
                     if !entity.sprinting.load(Ordering::Relaxed) {
                         if let Some(server) = player.world().server.upgrade() {
-                            let event = crate::plugin::player::player_toggle_sprint::PlayerToggleSprintEvent::new(
+                            let event = crate::plugin::player::toggle_sprint::PlayerToggleSprintEvent::new(
                                 player.clone(),
                                 true,
                             );
@@ -815,7 +815,7 @@ impl JavaClient {
                 Action::StopSprinting => {
                     if entity.sprinting.load(Ordering::Relaxed) {
                         if let Some(server) = player.world().server.upgrade() {
-                            let event = crate::plugin::player::player_toggle_sprint::PlayerToggleSprintEvent::new(
+                            let event = crate::plugin::player::toggle_sprint::PlayerToggleSprintEvent::new(
                                 player.clone(),
                                 false,
                             );
@@ -849,7 +849,7 @@ impl JavaClient {
         let sneak = input.input & SPlayerInput::SNEAK != 0;
         if player.get_entity().sneaking.load(Ordering::Relaxed) != sneak {
             if let Some(server) = player.world().server.upgrade() {
-                let event = crate::plugin::player::player_toggle_sneak::PlayerToggleSneakEvent::new(
+                let event = crate::plugin::player::toggle_sneak::PlayerToggleSneakEvent::new(
                     player.clone(),
                     sneak,
                 );
@@ -1630,7 +1630,7 @@ impl JavaClient {
                         let speed = block::calc_block_breaking(player, state, block).await;
                         let item_stack = player.inventory.held_item().lock().await.clone();
                         let block_damage_event =
-                            crate::plugin::block::block_damage::BlockDamageEvent::new(
+                            crate::plugin::block::damage::BlockDamageEvent::new(
                                 player.clone(),
                                 block,
                                 position,
@@ -1692,7 +1692,7 @@ impl JavaClient {
                             world.get_block_and_state(&player_action.position).await;
                         let item_stack = player.inventory.held_item().lock().await.clone();
                         let event =
-                            crate::plugin::block::block_damage_abort::BlockDamageAbortEvent::new(
+                            crate::plugin::block::damage_abort::BlockDamageAbortEvent::new(
                                 player.clone(),
                                 block,
                                 player_action.position,
@@ -1728,7 +1728,7 @@ impl JavaClient {
                     if block_drop && let Some(server) = world.server.upgrade() {
                         let tool = player.inventory.held_item().lock().await.clone();
                         let block_key = format!("minecraft:{}", block.name);
-                        let event = crate::plugin::player::player_harvest_block::PlayerHarvestBlockEvent::new(
+                        let event = crate::plugin::player::harvest_block::PlayerHarvestBlockEvent::new(
                                 player.clone(),
                                 location,
                                 block_key,
@@ -1776,7 +1776,7 @@ impl JavaClient {
                     let main_hand = player.inventory.held_item().lock().await.clone();
                     let off_hand = player.inventory.off_hand_item().await.lock().await.clone();
                     if let Some(server) = player.world().server.upgrade() {
-                        let event = crate::plugin::player::player_swap_hand_items::PlayerSwapHandItemsEvent::new(
+                        let event = crate::plugin::player::swap_hand_items::PlayerSwapHandItemsEvent::new(
                             player.clone(),
                             off_hand.clone(),
                             main_hand.clone(),
@@ -1865,7 +1865,7 @@ impl JavaClient {
             && let Some(server) = player.world().server.upgrade()
             && let Some(player_arc) = player.as_arc()
         {
-            let event = crate::plugin::player::player_toggle_flight::PlayerToggleFlightEvent::new(
+            let event = crate::plugin::player::toggle_flight::PlayerToggleFlightEvent::new(
                 player_arc, flying,
             );
             let event = server.plugin_manager.fire(event).await;
@@ -2611,7 +2611,7 @@ impl JavaClient {
             }
             if multi_positions.len() > 1 {
                 let multi_event =
-                    crate::plugin::block::block_multi_place::BlockMultiPlaceEvent::new(
+                    crate::plugin::block::multi_place::BlockMultiPlaceEvent::new(
                         player_arc,
                         block,
                         multi_positions,

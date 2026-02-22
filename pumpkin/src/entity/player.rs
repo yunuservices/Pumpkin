@@ -84,14 +84,14 @@ use crate::entity::{EntityBaseFuture, NbtFuture, TeleportFuture};
 use crate::net::{ClientPlatform, GameProfile};
 use crate::net::{DisconnectReason, PlayerConfig};
 use crate::plugin::player::player_change_world::PlayerChangeWorldEvent;
-use crate::plugin::player::player_drop_item::PlayerDropItemEvent;
-use crate::plugin::player::player_exp_change::PlayerExpChangeEvent;
+use crate::plugin::player::drop_item::PlayerDropItemEvent;
+use crate::plugin::player::exp_change::PlayerExpChangeEvent;
 use crate::plugin::player::player_gamemode_change::PlayerGamemodeChangeEvent;
-use crate::plugin::player::player_item_break::PlayerItemBreakEvent;
-use crate::plugin::player::player_item_damage::PlayerItemDamageEvent;
-use crate::plugin::player::player_item_mend::PlayerItemMendEvent;
-use crate::plugin::player::player_kick::PlayerKickEvent;
-use crate::plugin::player::player_level_change::PlayerLevelChangeEvent;
+use crate::plugin::player::item_break::PlayerItemBreakEvent;
+use crate::plugin::player::item_damage::PlayerItemDamageEvent;
+use crate::plugin::player::item_mend::PlayerItemMendEvent;
+use crate::plugin::player::kick::PlayerKickEvent;
+use crate::plugin::player::level_change::PlayerLevelChangeEvent;
 use crate::plugin::player::player_teleport::PlayerTeleportEvent;
 use crate::server::Server;
 use crate::world::World;
@@ -1333,7 +1333,7 @@ impl Player {
         if let Some(server) = world.server.upgrade() {
             let bed_position = respawn_point.position.to_f64().add_raw(0.5, 0.0, 0.5);
             if let Some(player) = server.get_player_by_uuid(self.gameprofile.id) {
-                let event = crate::plugin::player::player_bed_leave::PlayerBedLeaveEvent::new(
+                let event = crate::plugin::player::bed_leave::PlayerBedLeaveEvent::new(
                     player,
                     bed_position,
                 );

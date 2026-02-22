@@ -32,7 +32,7 @@ use crate::{
         block::block_break::BlockBreakEvent,
         player::{
             player_join::PlayerJoinEvent, player_leave::PlayerLeaveEvent,
-            player_respawn::PlayerRespawnEvent, player_spawn_location::PlayerSpawnLocationEvent,
+            respawn::PlayerRespawnEvent, spawn_location::PlayerSpawnLocationEvent,
         },
     },
     server::Server,
@@ -2790,13 +2790,13 @@ impl World {
     pub async fn spawn_entity(&self, entity: Arc<dyn EntityBase>) {
         let base_entity = entity.get_entity();
         if let Some(server) = self.server.upgrade() {
-            let event = crate::plugin::entity::entity_spawn::EntitySpawnEvent::new(
+            let event = crate::plugin::entity::spawn::EntitySpawnEvent::new(
                 base_entity.entity_uuid,
                 base_entity.entity_type,
             );
             let event = server
                 .plugin_manager
-                .fire::<crate::plugin::entity::entity_spawn::EntitySpawnEvent>(event)
+                .fire::<crate::plugin::entity::spawn::EntitySpawnEvent>(event)
                 .await;
             if event.cancelled {
                 return;
@@ -3096,7 +3096,7 @@ impl World {
                 if let Some(player) = cause.clone()
                     && let Some(server) = self.server.upgrade()
                 {
-                    let event = crate::plugin::block::block_drop_item::BlockDropItemEvent::new(
+                    let event = crate::plugin::block::drop_item::BlockDropItemEvent::new(
                         player,
                         broken_block,
                         *position,
@@ -3362,7 +3362,7 @@ impl World {
             let (neighbor_block, neighbor_fluid) = self.get_block_and_fluid(&neighbor_pos).await;
 
             if let Some(server) = self.server.upgrade() {
-                let event = crate::plugin::block::block_physics::BlockPhysicsEvent::new(
+                let event = crate::plugin::block::physics::BlockPhysicsEvent::new(
                     neighbor_block,
                     neighbor_pos,
                     source_block,
