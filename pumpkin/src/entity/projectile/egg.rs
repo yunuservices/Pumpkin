@@ -8,7 +8,7 @@ use crate::{
     },
     server::Server,
 };
-use crate::plugin::player::player_egg_throw::PlayerEggThrowEvent;
+use crate::plugin::player::egg_throw::PlayerEggThrowEvent;
 use pumpkin_data::entity::{EntityStatus, EntityType};
 use pumpkin_data::item::Item;
 use pumpkin_data::meta_data_type::MetaDataType;

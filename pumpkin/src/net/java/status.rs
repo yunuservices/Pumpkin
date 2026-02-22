@@ -4,7 +4,7 @@ use pumpkin_protocol::{
     java::server::status::SStatusPingRequest,
 };
 
-use crate::{net::java::JavaClient, plugin::server::server_list_ping::ServerListPingEvent, server::Server};
+use crate::{net::java::JavaClient, plugin::server::list_ping::ServerListPingEvent, server::Server};
 use tracing::debug;
 
 impl JavaClient {

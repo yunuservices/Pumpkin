@@ -1,6 +1,6 @@
 pub mod server_broadcast;
 pub mod server_command;
-pub mod server_list_ping;
+pub mod list_ping;
 pub mod plugin_enable;
 pub mod plugin_disable;
 pub mod service_register;

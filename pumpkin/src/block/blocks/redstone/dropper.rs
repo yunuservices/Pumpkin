@@ -209,7 +209,7 @@ impl BlockBehaviour for DropperBlock {
                     let (drop_item, velocity) = if let Some(server) = args.world.server.upgrade()
                     {
                         let event_block = Block::from_id(args.block.id);
-                        let event = crate::plugin::block::block_dispense::BlockDispenseEvent::new(
+                        let event = crate::plugin::block::dispense::BlockDispenseEvent::new(
                             event_block,
                             *args.position,
                             args.world.uuid,

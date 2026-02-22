@@ -22,7 +22,7 @@ use crate::block::{
     PlacedArgs,
 };
 use crate::entity::{Entity, EntityBase};
-use crate::plugin::player::player_bed_enter::PlayerBedEnterEvent;
+use crate::plugin::player::bed_enter::PlayerBedEnterEvent;
 use crate::world::World;
 
 type BedProperties = pumpkin_data::block_properties::WhiteBedLikeProperties;

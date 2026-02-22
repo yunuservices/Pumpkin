@@ -46,7 +46,7 @@ impl FlowingLava {
                     Block::from_id(Block::COBBLESTONE.id)
                 };
                 if let Some(server) = world.server.upgrade() {
-                    let event = crate::plugin::block::block_form::BlockFormEvent::new(
+                    let event = crate::plugin::block::form::BlockFormEvent::new(
                         formed_block,
                         &Block::LAVA,
                         *block_pos,
@@ -73,7 +73,7 @@ impl FlowingLava {
             if below_is_soul_soil && world.get_block(&neighbor_pos).await == &Block::BLUE_ICE {
                 let mut formed_block = &Block::BASALT;
                 if let Some(server) = world.server.upgrade() {
-                    let event = crate::plugin::block::block_form::BlockFormEvent::new(
+                    let event = crate::plugin::block::form::BlockFormEvent::new(
                         formed_block,
                         &Block::LAVA,
                         *block_pos,

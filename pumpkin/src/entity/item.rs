@@ -1,6 +1,6 @@
 use crate::{
     entity::EntityBaseFuture,
-    plugin::player::player_pickup_arrow::PlayerPickupArrowEvent,
+    plugin::player::pickup_arrow::PlayerPickupArrowEvent,
     server::Server,
 };
 use core::f32;

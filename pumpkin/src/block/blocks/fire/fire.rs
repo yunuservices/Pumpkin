@@ -73,7 +73,7 @@ impl FireBlock {
 
     async fn should_fade(world: &Arc<World>, pos: &BlockPos, block: &'static Block) -> bool {
         if let Some(server) = world.server.upgrade() {
-            let event = crate::plugin::block::block_fade::BlockFadeEvent::new(
+            let event = crate::plugin::block::fade::BlockFadeEvent::new(
                 block,
                 &Block::AIR,
                 *pos,
@@ -143,7 +143,7 @@ impl FireBlock {
                 fire_props.age = EnumVariants::from_index(new_age);
                 let new_state_id = fire_props.to_state_id(&Block::FIRE);
                 if let Some(server) = world.server.upgrade() {
-                    let spread_event = crate::plugin::block::block_spread::BlockSpreadEvent {
+                    let spread_event = crate::plugin::block::spread::BlockSpreadEvent {
                         source_block: &Block::FIRE,
                         source_pos: *source_pos,
                         block: &Block::FIRE,
@@ -153,7 +153,7 @@ impl FireBlock {
                     };
                     let spread_event = server
                         .plugin_manager
-                        .fire::<crate::plugin::block::block_spread::BlockSpreadEvent>(
+                        .fire::<crate::plugin::block::spread::BlockSpreadEvent>(
                             spread_event,
                         )
                         .await;
@@ -177,7 +177,7 @@ impl FireBlock {
                     .await;
             } else {
                 if let Some(server) = world.server.upgrade() {
-                    let spread_event = crate::plugin::block::block_spread::BlockSpreadEvent {
+                    let spread_event = crate::plugin::block::spread::BlockSpreadEvent {
                         source_block: &Block::FIRE,
                         source_pos: *source_pos,
                         block: &Block::FIRE,
@@ -187,7 +187,7 @@ impl FireBlock {
                     };
                     let spread_event = server
                         .plugin_manager
-                        .fire::<crate::plugin::block::block_spread::BlockSpreadEvent>(
+                        .fire::<crate::plugin::block::spread::BlockSpreadEvent>(
                             spread_event,
                         )
                         .await;
@@ -487,7 +487,7 @@ impl BlockBehaviour for FireBlock {
 
                                     //TODO drop items for burned blocks
                                     if let Some(server) = world.server.upgrade() {
-                                        let spread_event = crate::plugin::block::block_spread::BlockSpreadEvent {
+                                        let spread_event = crate::plugin::block::spread::BlockSpreadEvent {
                                             source_block: &Block::FIRE,
                                             source_pos: *pos,
                                             block: &Block::FIRE,
@@ -497,7 +497,7 @@ impl BlockBehaviour for FireBlock {
                                         };
                                         let spread_event = server
                                             .plugin_manager
-                                            .fire::<crate::plugin::block::block_spread::BlockSpreadEvent>(
+                                            .fire::<crate::plugin::block::spread::BlockSpreadEvent>(
                                                 spread_event,
                                             )
                                             .await;
